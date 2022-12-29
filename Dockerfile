@@ -13,6 +13,7 @@ WORKDIR /todo-app-test
 COPY package*.json ./
 
 RUN npm install
+RUN cp .env.example .env
 
 COPY . .
 
