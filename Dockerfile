@@ -17,4 +17,4 @@ ENV APP_PORT=3030
 
 EXPOSE 3030
 
-CMD [ "npm", "start" ]
+CMD ["/bin/bash","-c","./startup.sh"]
