@@ -1,10 +1,13 @@
 const { Router } = require("express")
 const router = Router()
-const { Activity } = require("../db/models")
+const db = require("../db/models")
+const { QueryTypes } = require("sequelize")
 
 router.get("/activity-groups", async (req, res) => {
   try {
-    const activities = await Activity.findAll()
+    const activities = await db.sequelize.query(`SELECT * FROM activities`, {
+      type: QueryTypes.SELECT
+    })
 
     if(activities.length > 0) {
       return res.status(200).json({
@@ -27,7 +30,9 @@ router.get("/activity-groups/:activity_id", async (req, res) => {
   const { activity_id } = req.params
 
   try {
-    const activity = await Activity.findByPk(activity_id)
+    const [activity] = await db.sequelize.query(`SELECT * FROM activities WHERE id = ${activity_id}`, {
+      type: QueryTypes.SELECT
+    })
 
     if(activity) {
       return res.json({
@@ -50,8 +55,17 @@ router.post("/activity-groups", async (req, res) => {
   const { title, email } = req.body
 
   try {
-    const activity = await Activity.create({
-      title, email
+    const [result] = await db.sequelize.query(`INSERT INTO activities (title, email, createdAt, updatedAt) VALUES ($title, $email, $createdAt, $updatedAt)`, {
+      bind: {
+        title,
+        email,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      },
+      type: QueryTypes.INSERT
+    })
+    const [activity] = await db.sequelize.query(`SELECT * FROM activities WHERE id = ${result}`, {
+      type: QueryTypes.SELECT
     })
 
     if(activity) {
@@ -76,15 +90,26 @@ router.patch("/activity-groups/:activity_id", async (req, res) => {
   const { activity_id } = req.params
 
   try {
-    const activity = await Activity.findByPk(activity_id)
+    const [activity] = await db.sequelize.query(`SELECT * FROM activities WHERE id = ${activity_id}`, {
+      type: QueryTypes.SELECT
+    })
 
     if(activity) {
-      await activity.update({ title })
+      await db.sequelize.query(`UPDATE activities SET title=$title, updatedAt=$updatedAt WHERE id = ${activity.id}`, {
+        bind: {
+          title,
+          updatedAt: new Date()
+        },
+        type: QueryTypes.UPDATE
+      })
+      const [updated] = await db.sequelize.query(`SELECT * FROM activities WHERE id = ${activity_id}`, {
+        type: QueryTypes.SELECT
+      })
 
       return res.status(202).json({
         status: "Success",
         message: "Success",
-        data: activity
+        data: updated
       })
     }
 
@@ -101,10 +126,12 @@ router.delete("/activity-groups/:activity_id", async (req, res) => {
   const { activity_id } = req.params
 
   try {
-    const activity = await Activity.findByPk(activity_id)
+    const [activity] = await db.sequelize.query(`SELECT * FROM activities WHERE id = ${activity_id}`, {
+      type: QueryTypes.SELECT
+    })
 
     if(activity) {
-      await activity.destroy()
+      await db.sequelize.query(`DELETE FROM activities WHERE id = ${activity.id}`)
 
       return res.status(202).json({
         status: "Success",
