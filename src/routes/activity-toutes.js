@@ -1,25 +1,15 @@
 const { Router } = require("express")
+const pool = require("../db/connection")
 const router = Router()
-const db = require("../db/models")
-const { QueryTypes } = require("sequelize")
 
 router.get("/activity-groups", async (req, res) => {
   try {
-    const activities = await db.sequelize.query(`SELECT * FROM activities`, {
-      type: QueryTypes.SELECT
-    })
+    const [activities] = await pool.query("SELECT * FROM activities")
 
-    if(activities.length > 0) {
-      return res.status(200).json({
-        status: "Success",
-        message: "Success",
-        data: activities
-      })
-    }
-
-    return res.status(404).json({
-      status: "Empty",
-      message: "Activities Is Empty"
+    return res.status(200).json({
+      status: "Success",
+      message: "Success",
+      data: activities
     })
   } catch (error) {
     return res.status(500).json(error)
@@ -30,21 +20,19 @@ router.get("/activity-groups/:activity_id", async (req, res) => {
   const { activity_id } = req.params
 
   try {
-    const [activity] = await db.sequelize.query(`SELECT * FROM activities WHERE id = ${activity_id}`, {
-      type: QueryTypes.SELECT
-    })
+    const [activity] = await pool.query(`SELECT * FROM activities WHERE id = ${activity_id}`)
 
-    if(activity) {
+    if(activity[0]) {
       return res.json({
         status: "Success",
         message: "Success",
-        data: activity
+        data: activity[0]
       })
     }
 
     return res.status(404).json({
       status: "Not Found",
-      message: "Activity Not Found"
+      message: `Activity with ID ${activity_id} Not Found`
     })
   } catch (error) {
     return res.status(500).json(error)
@@ -54,25 +42,20 @@ router.get("/activity-groups/:activity_id", async (req, res) => {
 router.post("/activity-groups", async (req, res) => {
   const { title, email } = req.body
 
-  try {
-    const [result] = await db.sequelize.query(`INSERT INTO activities (title, email, createdAt, updatedAt) VALUES ($title, $email, $createdAt, $updatedAt)`, {
-      bind: {
-        title,
-        email,
-        createdAt: new Date(),
-        updatedAt: new Date()
-      },
-      type: QueryTypes.INSERT
-    })
-    const [activity] = await db.sequelize.query(`SELECT * FROM activities WHERE id = ${result}`, {
-      type: QueryTypes.SELECT
-    })
+  if(!title) return res.status(400).json({ status: "Bad Request", message: "title cannot be null", })
 
-    if(activity) {
+  try {
+    const [result] = await pool.query(
+      `INSERT INTO activities (title, email, createdAt, updatedAt) VALUES (?, ?, ?, ?)`,
+      [title, email, new Date(), new Date()]
+    )
+    const [activity] = await pool.query(`SELECT * FROM activities WHERE id = ${result.insertId}`)
+
+    if(activity[0]) {
       return res.status(201).json({
         status: "Success",
         message: "Success",
-        data: activity
+        data: activity[0]
       })
     }
 
@@ -90,32 +73,25 @@ router.patch("/activity-groups/:activity_id", async (req, res) => {
   const { activity_id } = req.params
 
   try {
-    const [activity] = await db.sequelize.query(`SELECT * FROM activities WHERE id = ${activity_id}`, {
-      type: QueryTypes.SELECT
-    })
+    const [activity] = await pool.query(`SELECT * FROM activities WHERE id = ${activity_id}`)
 
-    if(activity) {
-      await db.sequelize.query(`UPDATE activities SET title=$title, updatedAt=$updatedAt WHERE id = ${activity.id}`, {
-        bind: {
-          title,
-          updatedAt: new Date()
-        },
-        type: QueryTypes.UPDATE
-      })
-      const [updated] = await db.sequelize.query(`SELECT * FROM activities WHERE id = ${activity_id}`, {
-        type: QueryTypes.SELECT
-      })
+    if(activity[0]) {
+      await pool.query(
+        `UPDATE activities SET title=?, updatedAt=? WHERE id = ${activity[0].id}`,
+        [title, new Date()]
+      )
+      const [updated] = await pool.query(`SELECT * FROM activities WHERE id = ${activity_id}`)
 
-      return res.status(202).json({
+      return res.status(200).json({
         status: "Success",
         message: "Success",
-        data: updated
+        data: updated[0]
       })
     }
 
     return res.status(404).json({
       status: "Not Found",
-      message: "Activity Not Found"
+      message: `Activity with ID ${activity_id} Not Found`
     })
   } catch (error) {
     return res.status(500).json(error)
@@ -126,16 +102,17 @@ router.delete("/activity-groups/:activity_id", async (req, res) => {
   const { activity_id } = req.params
 
   try {
-    const [activity] = await db.sequelize.query(`SELECT * FROM activities WHERE id = ${activity_id}`, {
-      type: QueryTypes.SELECT
-    })
+    const [activity] = await pool.query(`SELECT * FROM activities WHERE id = ${activity_id}`)
 
-    if(activity) {
-      await db.sequelize.query(`DELETE FROM activities WHERE id = ${activity.id}`)
+    if(activity[0]) {
+      await pool.query(`DELETE FROM activities WHERE id = ${activity[0].id}`)
 
-      return res.status(202).json({
+      console.log(deleted);
+
+      return res.status(200).json({
         status: "Success",
-        message: "Success"
+        message: "Success",
+        data: {}
       })
     }
 

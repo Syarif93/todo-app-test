@@ -1,10 +1,11 @@
-FROM node:18.12.1
+FROM node:18.12.1-alpine3.17
 
 WORKDIR /todo-app-test
 
 COPY package*.json ./
 
-RUN npm install
+RUN apk update && apk add bash
+RUN npm ci
 
 COPY . .
 

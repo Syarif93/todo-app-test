@@ -1,25 +1,15 @@
 const { Router } = require("express")
 const router = Router()
-const db = require("../db/models")
-const { QueryTypes } = require("sequelize")
+const pool = require("../db/connection")
 
 router.get('/todo-items', async (req, res) => {
   try {
-    const todos = await db.sequelize.query(`SELECT * FROM todos`, {
-      type: QueryTypes.SELECT
-    })
+    const [todos] = await pool.query(`SELECT * FROM todos`)
 
-    if (todos.length > 0) {
-      return res.status(200).json({
-        status: "Success",
-        message: "Success",
-        data: todos
-      })
-    }
-
-    return res.status(404).json({
-      status: "Empty",
-      message: "Todos Is Empty"
+    return res.status(200).json({
+      status: "Success",
+      message: "Success",
+      data: todos
     })
   } catch (error) {
     return res.status(500).json(error)
@@ -29,12 +19,12 @@ router.get('/todo-items', async (req, res) => {
 router.get('/todo-items/:todo_id', async (req, res) => {
   const { todo_id } = req.params
 
-  try {
-    const todo = await db.sequelize.query(`SELECT * FROM todos WHERE id = ${todo_id} LIMIT 1`, {
-      type: QueryTypes.SELECT
-    })
+  if(!todo_id) return res.status(404).json({ status: "Bad Reques", message: "Bad Reques", })
 
-    if (todo[0]) {
+  try {
+    const [todo] = await pool.query(`SELECT * FROM todos WHERE id = ${todo_id}`)
+
+    if(todo[0]) {
       return res.status(200).json({
         status: "Success",
         message: "Success",
@@ -44,7 +34,7 @@ router.get('/todo-items/:todo_id', async (req, res) => {
 
     return res.status(404).json({
       status: "Not Found",
-      message: "Todo Not Found"
+      message: `Todo with ID ${todo_id} Not Found`
     })
   } catch (error) {
     return res.status(500).json(error)
@@ -54,32 +44,20 @@ router.get('/todo-items/:todo_id', async (req, res) => {
 router.post('/todo-items', async (req, res) => {
   const { title, activity_group_id, is_active } = req.body
 
+  if(!title) return res.status(400).json({ status: "Bad Request", message: "title cannot be null", })
+  if(!activity_group_id) return res.status(400).json({ status: "Bad Request", message: "activity_group_id cannot be null", })
+
   try {
-    const [result] = await db.sequelize.query(`INSERT INTO todos (title, activity_group_id, is_active, createdAt, updatedAt) VALUES ($title, $activity_group_id, $is_active, $createdAt, $updatedAt)`, {
-      bind: {
-        title,
-        activity_group_id,
-        is_active,
-        createdAt: new Date(),
-        updatedAt: new Date()
-      },
-      type: QueryTypes.INSERT,
-    })
-    const [todo] = await db.sequelize.query(`SELECT * FROM todos WHERE id = ${result}`, {
-      type: QueryTypes.SELECT
-    })
+    const [result] = await pool.query(
+      `INSERT INTO todos (title, activity_group_id, is_active, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?)`,
+      [title, activity_group_id, is_active, new Date(), new Date()]
+    )
+    const [[todo]] = await pool.query(`SELECT * FROM todos WHERE id = ${result.insertId}`)
 
-    if (todo) {
-      return res.status(201).json({
-        status: "Success",
-        message: "Success",
-        data: todo
-      })
-    }
-
-    return res.status(404).json({
-      status: "Failed",
-      message: "Create Todo Failed"
+    return res.status(201).json({
+      status: "Success",
+      message: "Success",
+      data: todo
     })
   } catch (error) {
     return res.status(500).json(error)
@@ -90,25 +68,18 @@ router.patch('/todo-items/:todo_id', async (req, res) => {
   const { todo_id } = req.params
   const { title, priority, is_active } = req.body
 
+  if(!todo_id) return res.status(404).json({ status: "Bad Reques", message: "Bad Reques", })
+
   try {
-    const [todo] = await db.sequelize.query(`SELECT * FROM todos WHERE id = ${todo_id}`, {
-      type: QueryTypes.SELECT
-    })
+    const [[todo]] = await pool.query(`SELECT * FROM todos WHERE id = ${todo_id}`)
 
-    if (todo) {
-      await db.sequelize.query(`UPDATE todos SET title=$title, priority=$priority, is_active=$is_active, updatedAt=$updatedAt WHERE id = ${todo.id}`, {
-        bind: {
-          title,
-          priority,
-          is_active,
-          updatedAt: new Date()
-        },
-        type: QueryTypes.UPDATE
-      })
-      const [updated] = await db.sequelize.query(`SELECT * FROM todos WHERE id = ${todo_id}`, {
-        type: QueryTypes.SELECT
-      })
-
+    if(todo) {
+      await pool.query(
+        `UPDATE todos SET title=?, priority=?, is_active=?, updatedAt=? WHERE id = ${todo.id}`,
+        [title, priority, is_active, new Date()]
+      )
+      const [[updated]] = await pool.query(`SELECT * FROM todos WHERE id = ${todo_id}`)
+  
       return res.status(200).json({
         status: "Success",
         message: "Success",
@@ -118,7 +89,7 @@ router.patch('/todo-items/:todo_id', async (req, res) => {
 
     return res.status(404).json({
       status: "Not Found",
-      message: "Todo Not Found"
+      message: `Todo with ID ${todo_id} Not Found`
     })
   } catch (error) {
     return res.status(500).json(error)
@@ -128,14 +99,14 @@ router.patch('/todo-items/:todo_id', async (req, res) => {
 router.delete('/todo-items/:todo_id', async (req, res) => {
   const { todo_id } = req.params
 
+  if(!todo_id) return res.status(404).json({ status: "Bad Reques", message: "Bad Reques", })
+
   try {
-    const [todo] = await db.sequelize.query(`SELECT * FROM todos WHERE id = ${todo_id}`, {
-      type: QueryTypes.SELECT
-    })
+    const [[todo]] = await pool.query(`SELECT * FROM todos WHERE id = ${todo_id}`)
 
-    if (todo) {
-      await db.sequelize.query(`DELETE FROM todos WHERE id = ${todo.id}`)
-
+    if(todo) {
+      await pool.query(`DELETE FROM todos WHERE id = ${todo.id}`)
+  
       return res.status(200).json({
         status: "Success",
         message: "Success"
@@ -144,7 +115,7 @@ router.delete('/todo-items/:todo_id', async (req, res) => {
 
     return res.status(404).json({
       status: "Not Found",
-      message: "Todo Not Found"
+      message: `Todo with ID ${todo_id} Not Found`
     })
   } catch (error) {
     return res.status(500).json(error)
